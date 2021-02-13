@@ -1,6 +1,7 @@
 # python-related
 from timeit import timeit
 import numpy as np
+from tabulate import tabulate
 
 # cython-related
 import pyximport; pyximport.install()
@@ -11,10 +12,11 @@ N = 100 # repeats number
 
 if __name__ == '__main__':
 
-    # dimensions = [50, 100, 200, 300, 400]
-    dimensions = [50, 100]
-    algorithms = ['dgels', 'dgelsy', 'dgelss', 'dgelsd']
-    types = ['type1', 'type2', 'type3']
+    # dimensions = np.array([50, 100, 200, 300, 400])
+    dimensions = np.array([50, 100])
+    algorithms = np.array(['dgels', 'dgelsy', 'dgelss', 'dgelsd'])
+    types = np.array(['type1', 'type2', 'type3'])
+    # types = np.array(['type1'])
 
     results = np.zeros((len(types), len(algorithms), len(dimensions)), dtype=np.float)
 
@@ -30,12 +32,11 @@ if __name__ == '__main__':
                 mainx.free_matrices(A, b)
 
     # print results
+    dimensions_annotated = np.insert(dimensions.astype(np.str), 0, ['Alg'])
     for type_id, type_name in enumerate(types):
         print("type:", type_name)
-        type_results = results[type_id]
-        for alg_id, alg_name in enumerate(algorithms):
-            alg_results = type_results[alg_id]
-            print(alg_name, end=' ')
-            for dim_id, _ in enumerate(dimensions):
-                print(alg_results[dim_id], end=' ')
-            print()
+        results_annotated = np.empty((results.shape[1], results.shape[2]+1), dtype=np.object)
+        results_annotated[:,1:] = results[type_id]
+        results_annotated[:,0] = algorithms
+        print(tabulate(results_annotated, headers=dimensions_annotated))
+        print()
