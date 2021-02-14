@@ -15,7 +15,7 @@ if __name__ == '__main__':
 
     # dimensions = np.array([50, 100, 200, 300, 400])
     dimensions = np.array([100, 200])
-    algorithms = np.array(['dgels', 'dgelsy', 'dgelss', 'dgelsd'])
+    algorithms = np.array(['DGELS', 'DGELSY', 'DGELSS', 'DGELSD'])
     # types = np.array([
     #     'Singular values distributed arithmetically from eps up to 1',
     #     'Singular values distributed geometrically from eps up to 1',
@@ -23,7 +23,7 @@ if __name__ == '__main__':
     types = np.array([
         'Singular values distributed arithmetically from eps up to 1'])
 
-    dimensions_annotated = np.insert(dimensions.astype(np.str), 0, ['Alg'])
+    dimensions_annotated = np.insert(dimensions.astype(np.str), 0, ['Function \ n'])
 
     # allocate the timings array
     results = np.zeros((len(types), len(algorithms), len(dimensions)), dtype=np.float)
@@ -37,12 +37,15 @@ if __name__ == '__main__':
                 m, n, nrhs, lda, ldb = dim, dim, 1, dim, dim
                 A, b = mainx.generate_matrices(seed, type_id, m, n, nrhs)
                 for alg_id, _ in enumerate(algorithms):
-                    results[type_id][alg_id][dim_id] += timeit("mainx.solve_lss(alg_id, A, b, m, n, nrhs, lda, ldb)", globals=globals(), number=N)
+                    if alg_id == 0 and type_id == 2:
+                        # we don't benchmark dgels on rank-deficient matrices
+                        continue
+                    results[type_id][alg_id][dim_id] += round(timeit("mainx.solve_lss(alg_id, A, b, m, n, nrhs, lda, ldb)", globals=globals(), number=N), 3)
                 mainx.free_matrices(A, b)
 
         # print results
         results_annotated = np.empty((results.shape[1], results.shape[2]+1), dtype=np.object)
         results_annotated[:,1:] = results[type_id]
         results_annotated[:,0] = algorithms
-        print(tabulate(results_annotated, headers=dimensions_annotated))
+        print(tabulate(results_annotated, headers=dimensions_annotated, tablefmt='latex'))
         print()
