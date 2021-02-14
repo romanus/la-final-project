@@ -18,7 +18,7 @@ seeds = [393, 950, 493, 923, 859, 871, 687, 996, 818, 867]
 N = 100
 
 # if False, the smallest possible memory is used
-# if True, the algorithm is asked for an optimum lwork, and it is used afterward
+# if True, the algorithm is asked for an optimal lwork, and it is used afterward
 tune_lwork = True
 
 if __name__ == '__main__':
