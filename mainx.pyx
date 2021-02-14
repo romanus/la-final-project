@@ -7,7 +7,7 @@ import scipy.linalg
 
 # cython-related
 cimport scipy.linalg.cython_lapack as lapack
-from libc.stdlib cimport malloc, free
+from libc.stdlib cimport malloc, free, realloc
 from libc.string cimport memcpy, memset
 from libc.math cimport log2
 
@@ -68,7 +68,7 @@ def solve_lss(int alg_id, long long A, long long b, int m, int n, int nrhs, int 
 
     return info, <int>work[0]
 
-def estimate_workspace(int alg_id, long long A, long long b, int m, int n, int nrhs):
+def estimate_workspace(int alg_id, long long A, long long b, int m, int n, int nrhs, int lda, int ldb, bint tune_lwork):
     cdef unsigned long long A_size
     cdef unsigned long long b_size
     cdef double* A_ptr
@@ -126,6 +126,15 @@ def estimate_workspace(int alg_id, long long A, long long b, int m, int n, int n
         allocated_matrices = [<long long>A_ptr, <long long>b_ptr, <long long>work, <long long>s, <long long>iwork]
     else:
         raise Exception("unknown alg_id")
+
+    if tune_lwork:
+        workspace = estimated_parameters, allocated_matrices
+        info, optimum_lwork = solve_lss(alg_id, A, b, m, n, nrhs, lda, ldb, workspace)
+        lwork = optimum_lwork
+        work = <double*>realloc(work, lwork * sizeof(double))
+
+        estimated_parameters[0] = optimum_lwork
+        allocated_matrices[2] = <long long>work
 
     return estimated_parameters, allocated_matrices
 

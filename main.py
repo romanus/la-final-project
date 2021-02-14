@@ -7,21 +7,33 @@ from tabulate import tabulate
 import pyximport; pyximport.install()
 import mainx
 
-seeds = [393, 950] # random seeds
-# seeds = [393, 950, 493, 923, 859, 871, 687, 996, 818, 867] # random seeds
-N = 100 # repeats number
+# the total number of iterations per each algorithm is len(seeds) * n = 1000.
+# So we get a time of 1000 iterations in seconds, which is equivalent to the average time of execution in ms.
+
+# random seeds
+# seeds = [393, 950] # debug
+seeds = [393, 950, 493, 923, 859, 871, 687, 996, 818, 867]
+
+# repeats number
+N = 100
+
+# if False, the smallest possible memory is used
+# if True, the algorithm is asked for an optimum lwork, and it is used afterward
+tune_lwork = True
 
 if __name__ == '__main__':
 
-    # dimensions = np.array([50, 100, 200, 300, 400])
-    dimensions = np.array([100, 200])
+    # dimensions = np.array([100, 200]) # debug
+    dimensions = np.array([50, 100, 200, 300, 400])
+
     algorithms = np.array(['DGELS', 'DGELSY', 'DGELSS', 'DGELSD'])
-    # types = np.array([
-    #     'Singular values distributed arithmetically from eps up to 1',
-    #     'Singular values distributed geometrically from eps up to 1',
-    #     '1 singular value at 1 and the other clustered at eps'])
+
+    # types = np.array([ #debug
+    #     'Singular values distributed arithmetically from eps up to 1'])
     types = np.array([
-        'Singular values distributed arithmetically from eps up to 1'])
+        'Singular values distributed arithmetically from eps up to 1',
+        'Singular values distributed geometrically from eps up to 1',
+        '1 singular value at 1 and the other clustered at eps'])
 
     dimensions_annotated = np.insert(dimensions.astype(np.str), 0, ['Function\\n'])
 
@@ -40,7 +52,7 @@ if __name__ == '__main__':
                     if alg_id == 0 and type_id == 2:
                         # we don't benchmark dgels on rank-deficient matrices
                         continue
-                    worspace = mainx.estimate_workspace(alg_id, A, b, m, n, nrhs)
+                    worspace = mainx.estimate_workspace(alg_id, A, b, m, n, nrhs, lda, ldb, tune_lwork)
                     results[type_id][alg_id][dim_id] += round(timeit("mainx.solve_lss(alg_id, A, b, m, n, nrhs, lda, ldb, worspace)", globals=globals(), number=N), 3)
                     mainx.free_workspace(worspace)
                 mainx.free_matrices(A, b)
