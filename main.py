@@ -24,7 +24,7 @@ tune_lwork = True
 if __name__ == '__main__':
 
     # dimensions = np.array([100, 200]) # debug
-    dimensions = np.array([50, 100, 200, 300, 400])
+    dimensions = np.array([100, 200, 300, 400, 500, 600])
 
     algorithms = np.array(['DGELS', 'DGELSY', 'DGELSS', 'DGELSD'])
 
