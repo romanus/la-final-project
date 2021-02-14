@@ -99,7 +99,7 @@ def generate_matrices(int seed, int type_id, int m, int n, int nrhs):
         diag_vals = np.linspace(DBL_EPSILON, 1, mn)
     elif type_id == 1:
         # Singular values distributed geometrically from eps up to 1
-        diag_vals = np.logspace(DBL_EPSILON, 1, mn, base=2) / 2
+        diag_vals = np.logspace(DBL_EPSILON, 1, mn, base=2)-1
     elif type_id == 2:
         # 1 singular value at 1 and the other clustered at eps
         diag_vals = DBL_EPSILON * np.ones((mn))
