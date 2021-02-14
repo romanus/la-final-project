@@ -79,6 +79,7 @@ def estimate_workspace(int alg_id, long long A, long long b, int m, int n, int n
     cdef double* s
     cdef int* iwork
     cdef int liwork, smlsiz, nlvl
+    cdef int n4, ispec
 
     mn = min(m,n)
 
@@ -109,7 +110,12 @@ def estimate_workspace(int alg_id, long long A, long long b, int m, int n, int n
         estimated_parameters = [lwork]
         allocated_matrices = [<long long>A_ptr, <long long>b_ptr, <long long>work, <long long>s]
     elif alg_id == 3: # dgelsd
-        smlsiz = 30
+        # ilaenv is not included in scipy, so we cannot invoke it :(
+        # n4 = -1 # unused param of ilaenv
+        # ispec = 9 # maximum size of the subproblems at the bottom of the computation tree in the divide-and-conquer algorithm
+        # smlsiz = lapack.ilaenv(&ispec, "dgelsd", "", &m, &n, &nrhs, &n4)
+        # http://www.netlib.org/lapack/explore-html/d8/d6d/_s_r_c_2ilaenv_8f_source.html, line 684 contains the hardcoded value:
+        smlsiz = 25
         nlvl = max(0, <int>log2(mn/(smlsiz+1.)) + 1)
         lwork = 12*n + 2*n*smlsiz + 8*n*nlvl + n*nrhs + (smlsiz+1)**2
         work = <double*>malloc(lwork * sizeof(double))
