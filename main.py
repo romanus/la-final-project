@@ -23,7 +23,7 @@ if __name__ == '__main__':
     types = np.array([
         'Singular values distributed arithmetically from eps up to 1'])
 
-    dimensions_annotated = np.insert(dimensions.astype(np.str), 0, ['Function \ n'])
+    dimensions_annotated = np.insert(dimensions.astype(np.str), 0, ['Function\\n'])
 
     # allocate the timings array
     results = np.zeros((len(types), len(algorithms), len(dimensions)), dtype=np.float)
@@ -40,7 +40,9 @@ if __name__ == '__main__':
                     if alg_id == 0 and type_id == 2:
                         # we don't benchmark dgels on rank-deficient matrices
                         continue
-                    results[type_id][alg_id][dim_id] += round(timeit("mainx.solve_lss(alg_id, A, b, m, n, nrhs, lda, ldb)", globals=globals(), number=N), 3)
+                    worspace = mainx.estimate_workspace(alg_id, A, b, m, n, nrhs)
+                    results[type_id][alg_id][dim_id] += round(timeit("mainx.solve_lss(alg_id, A, b, m, n, nrhs, lda, ldb, worspace)", globals=globals(), number=N), 3)
+                    mainx.free_workspace(worspace)
                 mainx.free_matrices(A, b)
 
         # print results

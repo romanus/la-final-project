@@ -13,17 +13,27 @@ from libc.math cimport log2
 
 DBL_EPSILON = sys.float_info.epsilon
 
-def solve_lss(int alg_id, long long A, long long b, int m, int n, int nrhs, int lda, int ldb):
-    cdef unsigned long long A_size = m * n * sizeof(double)
-    cdef unsigned long long b_size = m * nrhs * sizeof(double)
-    cdef double* A_ptr = <double*>malloc(A_size)
-    cdef double* b_ptr = <double*>malloc(b_size)
+def solve_lss(int alg_id, long long A, long long b, int m, int n, int nrhs, int lda, int ldb, workspace):
+    cdef unsigned long long A_size
+    cdef unsigned long long b_size
+    cdef double* A_ptr
+    cdef double* b_ptr
     cdef double* work
     cdef double* s
-    cdef int lwork, info, mn = min(m,n), optimal_lwork, rank, liwork, smlsiz, nlvl
+    cdef int lwork, info, rank, liwork
     cdef int* jpvt
-    cdef double rcond = DBL_EPSILON
+    cdef double rcond
     cdef int* iwork
+
+    rcond = DBL_EPSILON
+
+    A_size = m * n * sizeof(double)
+    b_size = m * nrhs * sizeof(double)
+
+    estimated_parameters, allocated_matrices = workspace
+
+    A_ptr = <double*><long long>allocated_matrices[0]
+    b_ptr = <double*><long long>allocated_matrices[1]
 
     # since the input buffers are overwritten with the algorithm results,
     # we need to copy them; this is not expensive at all
@@ -32,48 +42,93 @@ def solve_lss(int alg_id, long long A, long long b, int m, int n, int nrhs, int 
     memcpy(b_ptr, <void*>b, b_size)
 
     if alg_id == 0: # dgels
-        lwork = max(1, mn + max(mn, nrhs))
-        work = <double*>malloc(lwork * sizeof(double))
+        lwork = estimated_parameters[0]
+        work = <double*><long long>allocated_matrices[2]
         lapack.dgels("N", &m, &n, &nrhs, A_ptr, &lda, b_ptr, &ldb, work, &lwork, &info)
-        optimal_lwork = <int>work[0]
-        free(work)
     elif alg_id == 1: # dgelsy
-        jpvt = <int*> malloc(n * sizeof(int))
+        lwork = estimated_parameters[0]
+        work = <double*><long long>allocated_matrices[2]
+        jpvt = <int*><long long>allocated_matrices[3]
         memset(jpvt, 0, n * sizeof(int))
-        lwork = max(mn+3*n+1, 2*mn+nrhs)
-        work = <double*>malloc(lwork * sizeof(double))
         lapack.dgelsy(&m, &n, &nrhs, A_ptr, &lda, b_ptr, &ldb, jpvt, &rcond, &rank, work, &lwork, &info)
-        optimal_lwork = <int>work[0]
-        free(work)
-        free(jpvt)
     elif alg_id == 2: # dgelss
-        s = <double*>malloc(mn * sizeof(double))
-        lwork = 3*mn + max(2*mn, max(m,n), nrhs)
-        work = <double*>malloc(lwork * sizeof(double))
+        lwork = estimated_parameters[0]
+        work = <double*><long long>allocated_matrices[2]
+        s = <double*><long long>allocated_matrices[3]
         lapack.dgelss(&m, &n, &nrhs, A_ptr, &lda, b_ptr, &ldb, s, &rcond, &rank, work, &lwork, &info)
-        optimal_lwork = <int>work[0]
-        free(work)
-        free(s)
     elif alg_id == 3: # dgelsd
-        s = <double*>malloc(mn * sizeof(double))
-        smlsiz = 30
-        nlvl = max(0, <int>log2(mn/(smlsiz+1.)) + 1)
-        lwork = 12*n + 2*n*smlsiz + 8*n*nlvl + n*nrhs + (smlsiz+1)**2
-        liwork = max(1, 3 * mn * nlvl + 11*mn)
-        work = <double*>malloc(lwork * sizeof(double))
-        iwork = <int*>malloc(liwork * sizeof(int))
+        lwork = estimated_parameters[0]
+        work = <double*><long long>allocated_matrices[2]
+        s = <double*><long long>allocated_matrices[3]
+        liwork = estimated_parameters[1]
+        iwork = <int*><long long>allocated_matrices[4]
         lapack.dgelsd(&m, &n, &nrhs, A_ptr, &lda, b_ptr, &ldb, s, &rcond, &rank, work, &lwork, iwork, &info)
-        optimal_lwork = <int>work[0]
-        free(iwork)
-        free(work)
-        free(s)
     else:
         raise Exception("unknown alg_id")
 
-    free(A_ptr)
-    free(b_ptr)
+    return info, <int>work[0]
 
-    return info, optimal_lwork
+def estimate_workspace(int alg_id, long long A, long long b, int m, int n, int nrhs):
+    cdef unsigned long long A_size
+    cdef unsigned long long b_size
+    cdef double* A_ptr
+    cdef double* b_ptr
+    cdef int lwork, mn
+    cdef double* work
+    cdef int* jpvt
+    cdef double* s
+    cdef int* iwork
+    cdef int liwork, smlsiz, nlvl
+
+    mn = min(m,n)
+
+    A_size = m * n * sizeof(double)
+    b_size = m * nrhs * sizeof(double)
+
+    A_ptr = <double*>malloc(A_size)
+    b_ptr = <double*>malloc(b_size)
+
+    estimated_parameters = []
+    allocated_matrices = []
+
+    if alg_id == 0: # dgels
+        lwork = max(1, mn + max(mn, nrhs))
+        work = <double*>malloc(lwork * sizeof(double))
+        estimated_parameters = [lwork]
+        allocated_matrices = [<long long>A_ptr, <long long>b_ptr, <long long>work]
+    elif alg_id == 1: # dgelsy
+        lwork = max(mn+3*n+1, 2*mn+nrhs)
+        work = <double*>malloc(lwork * sizeof(double))
+        jpvt = <int*> malloc(n * sizeof(int))
+        estimated_parameters = [lwork]
+        allocated_matrices = [<long long>A_ptr, <long long>b_ptr, <long long>work, <long long>jpvt]
+    elif alg_id == 2: # dgelss
+        lwork = 3*mn + max(2*mn, max(m,n), nrhs)
+        work = <double*>malloc(lwork * sizeof(double))
+        s = <double*>malloc(mn * sizeof(double))
+        estimated_parameters = [lwork]
+        allocated_matrices = [<long long>A_ptr, <long long>b_ptr, <long long>work, <long long>s]
+    elif alg_id == 3: # dgelsd
+        smlsiz = 30
+        nlvl = max(0, <int>log2(mn/(smlsiz+1.)) + 1)
+        lwork = 12*n + 2*n*smlsiz + 8*n*nlvl + n*nrhs + (smlsiz+1)**2
+        work = <double*>malloc(lwork * sizeof(double))
+        s = <double*>malloc(mn * sizeof(double))
+        liwork = max(1, 3 * mn * nlvl + 11*mn)
+        iwork = <int*>malloc(liwork * sizeof(int))
+        estimated_parameters = [lwork, liwork]
+        allocated_matrices = [<long long>A_ptr, <long long>b_ptr, <long long>work, <long long>s, <long long>iwork]
+    else:
+        raise Exception("unknown alg_id")
+
+    return estimated_parameters, allocated_matrices
+
+def free_workspace(workspace):
+    cdef long long ptr
+
+    estimated_parameters, allocated_matrices = workspace
+    for ptr in allocated_matrices:
+        free(<void*>ptr)
 
 def generate_matrices(int seed, int type_id, int m, int n, int nrhs):
     cdef double* A = <double*>malloc(m * n * sizeof(double))
