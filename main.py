@@ -7,7 +7,7 @@ from tabulate import tabulate
 import pyximport; pyximport.install()
 import mainx
 
-seeds = [393, 950]
+seeds = [393, 950] # random seeds
 # seeds = [393, 950, 493, 923, 859, 871, 687, 996, 818, 867] # random seeds
 N = 100 # repeats number
 

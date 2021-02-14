@@ -9,6 +9,7 @@ import scipy.linalg
 cimport scipy.linalg.cython_lapack as lapack
 from libc.stdlib cimport malloc, free
 from libc.string cimport memcpy, memset
+from libc.math cimport log2
 
 DBL_EPSILON = sys.float_info.epsilon
 
@@ -18,10 +19,15 @@ def solve_lss(int alg_id, long long A, long long b, int m, int n, int nrhs, int 
     cdef double* A_ptr = <double*>malloc(A_size)
     cdef double* b_ptr = <double*>malloc(b_size)
     cdef double* work
-    cdef int lwork, info, mn = min(m,n), optimal_lwork, rank
+    cdef double* s
+    cdef int lwork, info, mn = min(m,n), optimal_lwork, rank, liwork, smlsiz, nlvl
     cdef int* jpvt
     cdef double rcond = DBL_EPSILON
+    cdef int* iwork
 
+    # since the input buffers are overwritten with the algorithm results,
+    # we need to copy them; this is not expensive at all
+    # (w.r.t. the overall algorithm complexity)
     memcpy(A_ptr, <void*>A, A_size)
     memcpy(b_ptr, <void*>b, b_size)
 
@@ -37,10 +43,32 @@ def solve_lss(int alg_id, long long A, long long b, int m, int n, int nrhs, int 
         lwork = max(mn+3*n+1, 2*mn+nrhs)
         work = <double*>malloc(lwork * sizeof(double))
         lapack.dgelsy(&m, &n, &nrhs, A_ptr, &lda, b_ptr, &ldb, jpvt, &rcond, &rank, work, &lwork, &info)
+        optimal_lwork = <int>work[0]
         free(work)
         free(jpvt)
+    elif alg_id == 2: # dgelss
+        s = <double*>malloc(mn * sizeof(double))
+        lwork = 3*mn + max(2*mn, max(m,n), nrhs)
+        work = <double*>malloc(lwork * sizeof(double))
+        lapack.dgelss(&m, &n, &nrhs, A_ptr, &lda, b_ptr, &ldb, s, &rcond, &rank, work, &lwork, &info)
+        optimal_lwork = <int>work[0]
+        free(work)
+        free(s)
+    elif alg_id == 3: # dgelsd
+        s = <double*>malloc(mn * sizeof(double))
+        smlsiz = 30
+        nlvl = max(0, <int>log2(mn/(smlsiz+1.)) + 1)
+        lwork = 12*n + 2*n*smlsiz + 8*n*nlvl + n*nrhs + (smlsiz+1)**2
+        liwork = max(1, 3 * mn * nlvl + 11*mn)
+        work = <double*>malloc(lwork * sizeof(double))
+        iwork = <int*>malloc(liwork * sizeof(int))
+        lapack.dgelsd(&m, &n, &nrhs, A_ptr, &lda, b_ptr, &ldb, s, &rcond, &rank, work, &lwork, iwork, &info)
+        optimal_lwork = <int>work[0]
+        free(iwork)
+        free(work)
+        free(s)
     else:
-        pass
+        raise Exception("unknown alg_id")
 
     free(A_ptr)
     free(b_ptr)
